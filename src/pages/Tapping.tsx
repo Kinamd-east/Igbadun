@@ -199,68 +199,94 @@ const Tapping = () => {
   }, [energy, maxEnergy, quizAnswered, showQuizModal, cooldownEndTime]);
 
   const handleTap = async (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-    if (loading || energy <= 0) return;
-    if (loading || energy <= 0 || (quizAnswered && !quizPassed)) return;
+  if (loading) return;
 
-    const card = e.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left; // Relative x position
-    const y = e.clientY - rect.top; // Relative y position
-    const imageElement = e.currentTarget.querySelector("img");
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.data();
+  const currentTime = Date.now();
 
-    if (imageElement) {
-      imageElement.classList.add("vibrate");
+  // Refill energy if 12hrs have passed
+  if (userData.energy <= 0) {
+    const lastDepleted = userData.lastDepletedAt?.toDate();
+    if (lastDepleted) {
+      const timePassed = currentTime - lastDepleted.getTime();
+      const twelveHours = 12 * 60 * 60 * 1000;
 
-      // Remove the class after the animation ends
-      setTimeout(() => {
-        imageElement.classList.remove("vibrate");
-      }, 300); // Match the duration of the animation (0.3s)
-    }
-
-    // card.style.transform = `perspective(1000px) rotateX(${-y / 10}deg) rotateY(${x / 10}deg)`;
-    // setTimeout(() => {
-    //   card.style.transform = '';
-    // }, 100);
-
-    const incrementValue = 1 + boostLevel;
-    const newPetals = petals + incrementValue;
-    const newHealth = Math.max(health - incrementValue, 0);
-    const newEnergy = Math.max(energy - incrementValue, 0);
-
-    setPetals(newPetals);
-    setHealth(newHealth);
-    setEnergy(newEnergy);
-    setClicks([...clicks, { id: Date.now(), x, y, value: incrementValue }]);
-    if (!isNaN(newPetals) && !isNaN(newHealth) && !isNaN(newEnergy)) {
-      await updateDoc(doc(db, "users", uid), {
-        petals: newPetals,
-        health: newHealth,
-        energy: newEnergy,
+      if (timePassed >= twelveHours) {
+        await updateDoc(userRef, {
+          energy: 2000,
+          lastDepletedAt: null,
+        });
+        toast.success("Energy refilled!");
+      } else {
+        const remaining = twelveHours - timePassed;
+        const hrs = Math.floor(remaining / (1000 * 60 * 60));
+        const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((remaining % (1000 * 60)) / 1000);
+        toast.error(`Wait ${hrs}h ${mins}m ${secs}s for energy refill.`);
+        return;
+      }
+    } else {
+      // Set timestamp if not already set
+      await updateDoc(userRef, {
+        lastDepletedAt: new Date(),
       });
+      toast("Sorry, you have to wait for 12hrs before your energy refills.");
+      return;
     }
+  }
 
-    await updateDoc(doc(db, "users", uid), {
-      petals: newPetals,
-      health: newHealth,
-      energy: newEnergy,
+  // Prevent action if quiz failed
+  if (quizAnswered && !quizPassed) return;
+
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const imageElement = card.querySelector("img");
+
+  if (imageElement) {
+    imageElement.classList.add("vibrate");
+    setTimeout(() => {
+      imageElement.classList.remove("vibrate");
+    }, 300);
+  }
+
+  const incrementValue = 1 + boostLevel;
+  const newPetals = petals + incrementValue;
+  const newHealth = Math.max(health - incrementValue, 0);
+  const newEnergy = Math.max(userData.energy - incrementValue, 0); // Use fresh energy value
+
+  setPetals(newPetals);
+  setHealth(newHealth);
+  setEnergy(newEnergy);
+  setClicks([...clicks, { id: Date.now(), x, y, value: incrementValue }]);
+
+  await updateDoc(userRef, {
+    petals: newPetals,
+    health: newHealth,
+    energy: newEnergy,
+    ...(newEnergy <= 0 && { lastDepletedAt: new Date() }), // Set depletion time
+  });
+
+  if (newHealth === 0) {
+    const nextMaxHealth = maxHealth + 1000000;
+    setMaxHealth(nextMaxHealth);
+    setShowVictoryModal(true);
+    setHealth(nextMaxHealth);
+    await updateDoc(userRef, {
+      maxHealth: nextMaxHealth,
+      health: nextMaxHealth,
     });
 
-    if (newHealth === 0) {
-      const nextMaxHealth = maxHealth + 1000000;
-      setMaxHealth(nextMaxHealth);
-      setShowVictoryModal(true);
-      setHealth(nextMaxHealth);
-      await updateDoc(doc(db, "users", uid), {
-        maxHealth: nextMaxHealth,
-        health: nextMaxHealth,
-      });
-      // Update the image based on the new maxHealth
-      const index = nextMaxHealth / 1000000 - 1;
-      if (index >= 0 && index < imagesArray.length) {
-        setImage(imagesArray[index]);
-      }
+    const index = nextMaxHealth / 1000000 - 1;
+    if (index >= 0 && index < imagesArray.length) {
+      setImage(imagesArray[index]);
     }
-  };
+  }
+};
+
 
   const handleQuizPass = () => {
     setQuizPassed(true);
@@ -300,68 +326,68 @@ const Tapping = () => {
 
   return (
     <div className="flex flex-col">
-        <Navbar />
-        <div
-      className="min-h-screen px-4 pt-4 flex flex-col items-center text-white font-medium"
-      style={{
-        backgroundImage: `url(${back3})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        height: "100vh", // Ensures it takes the full viewport height
-      }}
-    >
-      <div className="fixed top-0 left-0 w-full px-4 pt-8 z-10 flex flex-col items-center text-white">
-        <div className="mt-25 text-5xl font-bold flex items-center">
-          <img src={coin} width={44} height={44} />
-          <span className="ml-2" id="petalCount">
-            {petals.toLocaleString()}
-          </span>
-        </div>
-        <div className="text-base mt-2 flex items-center">
-          <img src={trophy} width={24} height={24} />
-        </div>
-      </div>
-      <div className="fixed bottom-0 left-0 w-full px-4 pb-4 z-10">
-        <div className="w-full flex justify-between gap-2">
-          <div className="flex items-center justify-center divforfriends">
-            <img src={heart} width={44} height={44} alt="High Voltage" />
-            <div className="ml-2 text-left">
-              <span className="text-white text-2xl font-bold block">
-                {health}
-              </span>
-              <span className="text-white text-large opacity-75">
-                / {maxHealth}
-              </span>
-            </div>
+      <Navbar />
+      <div
+        className="min-h-screen px-4 pt-4 flex flex-col items-center text-white font-medium"
+        style={{
+          backgroundImage: `url(${back3})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          height: "100vh", // Ensures it takes the full viewport height
+        }}
+      >
+        <div className="fixed top-0 left-0 w-full px-4 pt-8 z-10 flex flex-col items-center text-white">
+          <div className="mt-25 text-5xl font-bold flex items-center">
+            <img src={coin} width={44} height={44} />
+            <span className="ml-2" id="petalCount">
+              {petals.toLocaleString()}
+            </span>
           </div>
-          <div className="w-1/3 flex items-center justify-start max-w-32">
+          <div className="text-base mt-2 flex items-center">
+            <img src={trophy} width={24} height={24} />
+          </div>
+        </div>
+        <div className="fixed bottom-0 left-0 w-full px-4 pb-4 z-10">
+          <div className="w-full flex justify-between gap-2">
             <div className="flex items-center justify-center divforfriends">
-              <img
-                src={highVoltage}
-                width={44}
-                height={44}
-                alt="High Voltage"
-              />
+              <img src={heart} width={44} height={44} alt="High Voltage" />
               <div className="ml-2 text-left">
                 <span className="text-white text-2xl font-bold block">
-                  {energy}
+                  {health}
                 </span>
                 <span className="text-white text-large opacity-75">
-                  / {maxEnergy}
+                  / {maxHealth}
                 </span>
               </div>
             </div>
+            <div className="w-1/3 flex items-center justify-start max-w-32">
+              <div className="flex items-center justify-center divforfriends">
+                <img
+                  src={highVoltage}
+                  width={44}
+                  height={44}
+                  alt="High Voltage"
+                />
+                <div className="ml-2 text-left">
+                  <span className="text-white text-2xl font-bold block">
+                    {energy}
+                  </span>
+                  <span className="text-white text-large opacity-75">
+                    / {maxEnergy}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="progress-container sm:order-1">
+            <div
+              className="progress-bar"
+              style={{ width: `${(energy / maxEnergy) * 100}%` }}
+            ></div>
           </div>
         </div>
-        <div className="progress-container sm:order-1">
-          <div
-            className="progress-bar"
-            style={{ width: `${(energy / maxEnergy) * 100}%` }}
-          ></div>
-        </div>
-      </div>
-      {/* <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        {/* <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
         <h1 className="text-3xl font-bold mb-4">Petal Tap Game</h1>
         <p className="text-xl mb-4">Petals: <span id="petalCount">{petals}</span></p>
         <button
@@ -388,43 +414,43 @@ const Tapping = () => {
         <p className="text-xl mb-4">Energy: <span id="energy">{energy}</span>/{maxEnergy}</p>
         <p className="text-xl mb-4">Energy Upgrade Price: <span id="energyUpgradePrice">{energyUpgradePrice}</span></p>
       </div> */}
-      <div className="flex-grow flex items-center justify-center">
-        <div className="relative mt-20 tap-animation" onClick={handleTap}>
-          <img
-            src={currentImage}
-            width={300}
-            height={300}
-            alt="landoftheforgotten"
-            className="flex-wrap "
-          />
-          {clicks.map((click) => (
-            <div
-              key={click.id}
-              className="absolute text-5xl font-bold opacity-100 text-white pointer-events-none increment"
-              style={{
-                top: `${click.y}px`,
-                left: `${click.x}px`,
-                transform: "translate(-50%, -50%)",
-                animation: "float 1s ease-out",
-              }}
-              // onAnimationEnd={() => handleAnimationEnd(click.id)}
-              onAnimationEnd={() => handleAnimationEnd(click.id)}
-            >
-              +{click.value}
-            </div>
-          ))}
+        <div className="flex-grow flex items-center justify-center">
+          <div className="relative mt-20 tap-animation" onClick={handleTap}>
+            <img
+              src={currentImage}
+              width={300}
+              height={300}
+              alt="landoftheforgotten"
+              className="flex-wrap "
+            />
+            {clicks.map((click) => (
+              <div
+                key={click.id}
+                className="absolute text-5xl font-bold opacity-100 text-white pointer-events-none increment"
+                style={{
+                  top: `${click.y}px`,
+                  left: `${click.x}px`,
+                  transform: "translate(-50%, -50%)",
+                  animation: "float 1s ease-out",
+                }}
+                // onAnimationEnd={() => handleAnimationEnd(click.id)}
+                onAnimationEnd={() => handleAnimationEnd(click.id)}
+              >
+                +{click.value}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {showVictoryModal && <VictoryModal onClose={closeVictoryModal} />}
-      {showQuizModal && (
-        <QuizModal
-          onClose={() => setShowQuizModal(false)}
-          onPass={handleQuizPass}
-          onFail={handleQuizFail}
-        />
-      )}
-    </div>
+        {showVictoryModal && <VictoryModal onClose={closeVictoryModal} />}
+        {showQuizModal && (
+          <QuizModal
+            onClose={() => setShowQuizModal(false)}
+            onPass={handleQuizPass}
+            onFail={handleQuizFail}
+          />
+        )}
+      </div>
     </div>
   );
 };
