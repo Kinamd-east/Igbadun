@@ -2,8 +2,9 @@ import Navbar from "@/components/Navbar";
 import React from "react";
 
 const Home = () => {
+  // bg-[#2c2c2c]
   return (
-    <div className="bg-[#2c2c2c]">
+    <div className="">
       <Navbar />
       <div className="pt-30 px-6">
         <h1 className="text-3xl font-bold">Home</h1>

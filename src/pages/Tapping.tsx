@@ -354,31 +354,6 @@ const Tapping = () => {
             </div>
           </div>
         </div>
-        <div className="flex-grow flex items-center w-full text-sm">
-          <div className="w-full bg-[#b69a47] py-4 rounded-2xl flex justify-around">
-            <a href="/invites">
-              <button className="flex flex-col items-center gap-1">
-                <img src={bear} width={30} height={30} alt="Invites" />
-                <span>Invites</span>
-              </button>
-              <div className="dot"></div>
-            </a>
-            <div className="h-[48px] w-[2px] bg-[#fddb6d]"></div>
-            <button className="flex flex-col items-center gap-1">
-              <Link to="/earn">
-                <img src={coin} width={30} height={30} alt="Earn" />
-                <span>Earn</span>
-              </Link>
-            </button>
-            <div className="h-[48px] w-[2px] bg-[#fddb6d]"></div>
-            <button className="flex flex-col items-center gap-1">
-              <Link to="/boost">
-                <img src={rocket} width={30} height={30} alt="boosts" />
-                <span>Boosts</span>
-              </Link>
-            </button>
-          </div>
-        </div>
         <div className="progress-container sm:order-1">
           <div
             className="progress-bar"

@@ -1,38 +1,53 @@
 import React from "react";
 import {
   BrowserRouter as Router,
-  Route,
   Routes,
+  Route,
   Navigate,
 } from "react-router-dom";
 import { Home, Signin, Signup } from "./pages";
-import { useAuth } from "../src/context/AuthContent";
 import Tapping from "./pages/Tapping";
+import { useAuth } from "./context/AuthContent"; // fix path if needed
 import { Toaster } from "@/components/ui/sonner";
+import Profile from "./pages/Profile";
+import TappingMarketplace from "./pages/TappingMarketplace";
+
 const App = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return <div className="text-center p-8 text-lg">Loading...</div>;
+  }
 
   return (
     <Router>
       <Routes>
-        {/* Accessible to everyone */}
+        {/* Public page */}
         <Route path="/" element={<Home />} />
 
-        {/* Block access to auth routes if already logged in */}
-        <Route path="/sign-up" element={<Signup />} />
+        {/* Auth pages - redirect if logged in */}
         <Route
           path="/sign-in"
-          element={!currentUser ? <Signin /> : <Navigate to="/" />}
+          element={currentUser ? <Navigate to="/tapping" /> : <Signin />}
+        />
+        <Route
+          path="/sign-up"
+          element={currentUser ? <Navigate to="/tapping" /> : <Signup />}
         />
 
-        {/* Protected routes */}
+        {/* Protected route */}
         <Route
           path="/tapping"
-          element={!currentUser ? <Signin /> : <Tapping />}
+          element={currentUser ? <TappingMarketplace /> : <Navigate to="/sign-in" />}
         />
-
-        {/* Add more protected routes here */}
-        {/* <Route path="/earn" element={<PrivateRoute><Earn /></PrivateRoute>} /> */}
+        <Route
+          path="/tapping/landoftheforgotten"
+          element={currentUser ? <Tapping /> : <Navigate to="/sign-in" />}
+        />
+        <Route
+          path="/profile/:id"
+          element={currentUser ? <Profile /> : <Navigate to="/sign-in" />}
+        />
       </Routes>
       <Toaster />
     </Router>
